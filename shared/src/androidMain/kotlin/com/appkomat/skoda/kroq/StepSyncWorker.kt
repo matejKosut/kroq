@@ -6,6 +6,7 @@ import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.work.CoroutineWorker
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -24,7 +25,9 @@ class StepSyncWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
-            if (HealthConnectClient.sdkStatus(applicationContext) != HealthConnectClient.SDK_AVAILABLE) {
+            println("[StepSyncWorker] Starting Health Connect step sync...")
+            if (HealthConnectClient.getSdkStatus(applicationContext) != HealthConnectClient.SDK_AVAILABLE) {
+                println("[StepSyncWorker] Health Connect SDK is not available.")
                 return@withContext Result.failure()
             }
 
@@ -49,14 +52,19 @@ class StepSyncWorker(
                 totalSteps += stepRecord.count
             }
 
+            println("[StepSyncWorker] Read $totalSteps steps for today from Health Connect. Syncing to backend...")
+
             // Send to backend (null date = today)
             val httpResponse = NetworkClient.sendStepsToBackend(totalSteps.toInt())
             if (httpResponse != null && httpResponse.status.value in 200..299) {
+                println("[StepSyncWorker] Step sync completed successfully.")
                 Result.success()
             } else {
+                println("[StepSyncWorker] Step sync failed with status: ${httpResponse?.status}")
                 Result.retry()
             }
         } catch (e: Exception) {
+            println("[StepSyncWorker] Error in StepSyncWorker: ${e.message}")
             e.printStackTrace()
             Result.retry()
         }
@@ -72,6 +80,11 @@ class StepSyncWorker(
                 androidx.work.ExistingPeriodicWorkPolicy.KEEP,
                 workRequest
             )
+        }
+
+        fun runOnce(context: Context) {
+            val workRequest = OneTimeWorkRequestBuilder<StepSyncWorker>().build()
+            WorkManager.getInstance(context).enqueue(workRequest)
         }
     }
 }

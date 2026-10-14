@@ -14,6 +14,8 @@ import platform.HealthKit.HKQuantityTypeIdentifierStepCount
 import platform.HealthKit.HKSampleQuery
 import platform.HealthKit.HKUnit
 import platform.HealthKit.*
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 object HealthKitManager {
     private val healthStore = HKHealthStore()
@@ -23,15 +25,18 @@ object HealthKitManager {
         if (!HKHealthStore.isHealthDataAvailable()) return
         if (stepType == null) return
 
-        healthStore.requestAuthorizationToShareTypes(
-            null,
-            setOf(stepType)
-        ) { success, error ->
-            if (success) {
-                setupBackgroundDelivery()
-                executeObserverQuery()
-            } else {
-                println("HealthKit authorization failed: $error")
+        dispatch_async(dispatch_get_main_queue()) {
+            healthStore.requestAuthorizationToShareTypes(
+                null,
+                setOf(stepType)
+            ) { success, error ->
+                if (success) {
+                    setupBackgroundDelivery()
+                    executeObserverQuery()
+                    fetchLatestStepsAndSync(null)
+                } else {
+                    println("HealthKit authorization failed: $error")
+                }
             }
         }
     }
@@ -80,6 +85,8 @@ object HealthKitManager {
             platform.HealthKit.HKQueryOptionNone
         )
 
+        println("[HealthKitManager] Fetching today's steps from HealthKit...")
+
         val query = HKSampleQuery(
             sampleType = stepType,
             predicate = predicate,
@@ -96,14 +103,18 @@ object HealthKitManager {
                         }
                     }
                     
+                    println("[HealthKitManager] Read $totalSteps steps for today from HealthKit. Syncing to backend...")
+
                     GlobalScope.launch {
                         try {
-                            NetworkClient.sendStepsToBackend(totalSteps)
+                            val response = NetworkClient.sendStepsToBackend(totalSteps)
+                            println("[HealthKitManager] Step sync completed with response: $response")
                         } finally {
                             completionHandler?.invoke()
                         }
                     }
                 } else {
+                    println("[HealthKitManager] Failed to fetch steps from HealthKit: $error")
                     completionHandler?.invoke()
                 }
             }

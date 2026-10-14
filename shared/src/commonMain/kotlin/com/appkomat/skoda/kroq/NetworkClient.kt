@@ -6,6 +6,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
@@ -40,6 +41,8 @@ object NetworkClient {
     }
 
     suspend fun sendStepsToBackend(steps: Int, date: String? = null): HttpResponse? {
+        val dateInfo = date ?: "today"
+        println("[NetworkClient] Sending steps to API: steps=$steps, date=$dateInfo")
         return try {
             val payload = StepUpdatePayload(
                 steps = steps,
@@ -50,10 +53,11 @@ object NetworkClient {
                 header("x-api-key", API_KEY)
                 setBody(payload)
             }
-            println("Steps sync response status: ${response.status}")
+            val responseBody = response.bodyAsText()
+            println("[NetworkClient] Steps sync SUCCESS: status=${response.status.value}, body=$responseBody")
             response
         } catch (e: Exception) {
-            println("Error syncing steps: ${e.message}")
+            println("[NetworkClient] Steps sync ERROR: ${e.message}")
             e.printStackTrace()
             null
         }
