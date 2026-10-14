@@ -14,5 +14,8 @@ struct ContentView: View {
     var body: some View {
         ComposeView()
             .ignoresSafeArea()
+            .onAppear {
+                HealthKitManager.shared.startObservingSteps()
+            }
     }
 }

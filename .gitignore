@@ -1,8 +1,9 @@
 /shared/build
-/shared/build
 /androidApp/build
 /.kotlin
 /.idea
 /build
 /.gradle
-/androidApp/build
+/androidApp/build/
+/androidApp/build/intermediates
+/shared/build/classes
