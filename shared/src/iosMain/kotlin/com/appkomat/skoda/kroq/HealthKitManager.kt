@@ -3,18 +3,16 @@ package com.appkomat.skoda.kroq
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import platform.Foundation.NSCalendar
 import platform.Foundation.NSDate
 import platform.Foundation.NSError
-import platform.Foundation.dateByAddingTimeInterval
 import platform.HealthKit.HKHealthStore
 import platform.HealthKit.HKObjectType
 import platform.HealthKit.HKObserverQuery
 import platform.HealthKit.HKQuantitySample
-import platform.HealthKit.HKQuantityType
 import platform.HealthKit.HKQuantityTypeIdentifierStepCount
 import platform.HealthKit.HKSampleQuery
-import platform.HealthKit.HKSampleSortIdentifierEndDate
-import platform.HealthKit.HKUpdateFrequency
+import platform.HealthKit.HKUnit
 import platform.HealthKit.*
 
 object HealthKitManager {
@@ -72,9 +70,10 @@ object HealthKitManager {
     private fun fetchLatestStepsAndSync(completionHandler: (() -> Unit)?) {
         if (stepType == null) return
         
-        // Fetch steps for the last hour
+        // Fetch steps for today (from midnight to now)
+        val calendar = NSCalendar.currentCalendar
         val endDate = NSDate()
-        val startDate = endDate.dateByAddingTimeInterval(-3600.0) // 1 hour ago
+        val startDate = calendar.startOfDayForDate(endDate)
         val predicate = platform.HealthKit.HKQuery.predicateForSamplesWithStartDate(
             startDate,
             endDate,

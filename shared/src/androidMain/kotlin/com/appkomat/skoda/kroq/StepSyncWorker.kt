@@ -12,6 +12,8 @@ import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 
@@ -28,27 +30,32 @@ class StepSyncWorker(
 
             val healthConnectClient = HealthConnectClient.getOrCreate(applicationContext)
 
-            // Read steps for the last hour
-            val endTime = Instant.now()
-            val startTime = endTime.minus(1, ChronoUnit.HOURS)
+            // Read steps for today (from midnight to now)
+            val now = Instant.now()
+            val startOfDay = ZonedDateTime.now(ZoneId.systemDefault())
+                .truncatedTo(ChronoUnit.DAYS)
+                .toInstant()
 
             val response = healthConnectClient.readRecords(
                 ReadRecordsRequest(
                     StepsRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
+                    timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
                 )
             )
 
-            // Calculate total steps
+            // Calculate total steps for today
             var totalSteps = 0L
             for (stepRecord in response.records) {
                 totalSteps += stepRecord.count
             }
 
-            // Send to our backend
-            NetworkClient.sendStepsToBackend(totalSteps.toInt())
-
-            Result.success()
+            // Send to backend (null date = today)
+            val httpResponse = NetworkClient.sendStepsToBackend(totalSteps.toInt())
+            if (httpResponse != null && httpResponse.status.value in 200..299) {
+                Result.success()
+            } else {
+                Result.retry()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             Result.retry()
